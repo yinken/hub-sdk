@@ -1,78 +1,94 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState, useContext } from "react"
 import { Link } from "gatsby"
 import { StaticImage } from "gatsby-plugin-image"
 
 import Layout from "../components/layout"
 import SEO from "../components/seo"
-import { Button } from "../components/Button/button"
+import { Button } from "../components/button/Button"
 import { Form } from "../components/Form/form"
 import { Field } from "../components/Form/field"
 
-const EVENT_TYPES = [
-  "weather_info_captured",
-  "visitor_typing",
-  "agent_message_received",
-  "conversation_started",
-  "name_captured",
-  "visitor_message_received",
-  "visitor_page_update",
-  "conversation_closed_by_system",
-  "conversation_closed_by_visitor",
-  "conversation_closed_by_agent",
-  "phone_captured",
-  "email_captured",
-  "conversation_sent_integration",
-  "reclaim_transfer_request",
-  "request_file",
-  "request_secure_data",
-  "ban_user",
-  "call_me",
-  "visitor_transcript_request",
-  "widget_changed",
-  "ignore",
-  "record",
-  "auto_translate_enabled",
-  "auto_translate_disabled",
-  "auto_translate_language_changed",
-]
+import { ConversationContext } from "../context/ConversationContext"
+import { Main } from "../components/main/Main"
+import { Section } from "../components/section/Section"
+import { Container } from "../components/container/Container"
+import { EventLog } from "../components/event-log/EventLog"
+
+import { postMessage } from "../helpers/message-helpers"
+import { messageTypes } from "../types/messages"
+import { Composer } from "../components/composer/Composer"
+import replies from "../data/replies.json"
 
 const IndexPage = () => {
-  const [eventLog, setEventLog] = useState([])
-  const ref = useRef(null);
+  const conversationContext = useContext(ConversationContext)
+  const { setMetaData, setEventLog, eventLog, metaData, activeNavigation } =
+    conversationContext
+  const ref = useRef(null)
+
+  useEffect(() => {
+    console.log(eventLog)
+  }, [eventLog])
+
   useEffect(() => {
     if (window) {
-      console.log("attached listener")
+      window.addEventListener("message", function (event) {
+        console.log(event)
+      })
       window.addEventListener("message", event => messageListener(event))
-    }
 
-    const messageListener = (e) => {
-      console.log(e)
-      const message = e.data
-      if (EVENT_TYPES.includes(message.type)) {
-        setEventLog(prevState => {
-          return [...prevState, message];
+      const hasStarted = localStorage.getItem(
+        `${metaData.casePublicId}_hasStarted`
+      )
+
+      if (!hasStarted) {
+        postMessage({
+          type: "status",
+          data: {
+            message: "ready",
+          },
         })
       }
+    }
 
+    const messageListener = e => {
+      if (
+        e.data.source !== "react-devtools-content-script" &&
+        e.data.source !== "react-devtools-bridge"
+      ) {
+      }
+      const message = e.data
+      if (Object.keys(messageTypes).includes(message.type)) {
+        if (message.sender && message.sender.type === "AGENT")
+          setMetaData({
+            agentEmail: message.sender.id,
+            casePublicId: message.conversationPublicId,
+          })
+        switch (message.type) {
+          case "conversation_started": {
+            localStorage.setItem(`${message.casePublicId}_hasStarted`, true)
+            break
+          }
+        }
+        setEventLog(message)
+      }
     }
 
     return function cleanup() {
-      console.log("removed listener")
-      window.removeEventListener("message", messageListener);
+      window.removeEventListener("message", messageListener)
     }
-  }, [ref])
-  return (<Layout>
-    <main className="flex flex-col" ref={ref}>
-      <h1>HUB SDK Testing Environment</h1>
-      <section>
-        <h2>Event Log</h2>
-        <div className={["flex", "flex-col", "font-mono"].join(" ")}>
-          {eventLog.length > 0 && eventLog.map(event => {
-            return <div className={["bg-slate-100", "border-b", "border-gray-400", "odd:bg-slate-200"].join(" ")}><h3 className={["font-semibold"].join(" ")}>{event.type}</h3><div className={["break-all"].join(" ")}>{JSON.stringify(event.data)}</div></div>
-          })}
-        </div>
-      </section>
-      {/* <section className="w-full">
+  }, [])
+  return (
+    <Layout>
+      <Main className="flex flex-col" ref={ref}>
+        <div>Version 1.8</div>
+        <Section isVisible={activeNavigation.name === "index"}>
+          <EventLog events={eventLog} />
+        </Section>
+        <Section isVisible={activeNavigation.name === "send-message"}>
+          <Composer metaData={metaData} replies={replies} />
+        </Section>
+
+        {/* <section className="w-full">
         <Form action={() => console.log("hallo")} actionLabel="Save">
           <label className="w-100 sm:w-1/2">
             Widget ID
@@ -115,8 +131,9 @@ const IndexPage = () => {
           </button>
         </form>
       </section> */}
-    </main>
-  </Layout>)
+      </Main>
+    </Layout>
+  )
 }
 
 export default IndexPage

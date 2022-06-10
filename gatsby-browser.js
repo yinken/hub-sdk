@@ -1,7 +1,13 @@
-/**
- * Implement Gatsby's Browser APIs in this file.
- *
- * See: https://www.gatsbyjs.org/docs/browser-apis/
- */
+import React from "react"
+import PropTypes from 'prop-types';
 
-import './src/styles/globals.css'
+import './src/style/tailwind.css';
+
+// Context
+import { ConversationProvider } from "./src/context/ConversationContext"
+
+export const wrapRootElement = ({ element }) => {
+  return <ConversationProvider value={[]}>{element}</ConversationProvider>
+}
+
+wrapRootElement.propTypes = { element: PropTypes.any }
